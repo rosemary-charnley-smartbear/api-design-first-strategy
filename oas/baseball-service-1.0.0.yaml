@@ -85,6 +85,8 @@ paths:
                 $ref: "#/components/schemas/TeamList"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
   /teams/{teamId}:
     get:
       tags:
@@ -108,6 +110,8 @@ paths:
                 $ref: "#/components/schemas/Team"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
   /teams/{teamId}/roster:
     get:
       tags:
@@ -132,6 +136,8 @@ paths:
                 $ref: "#/components/schemas/PlayerList"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
   /players:
     get:
       tags:
@@ -178,6 +184,8 @@ paths:
                 $ref: "#/components/schemas/PlayerList"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
   /players/{playerId}:
     get:
       tags:
@@ -201,6 +209,8 @@ paths:
                 $ref: "#/components/schemas/Player"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
   /players/{playerId}/stats:
     get:
       tags:
@@ -232,6 +242,8 @@ paths:
                 $ref: "#/components/schemas/PlayerSeasonStats"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
   /standings:
     get:
       tags:
@@ -262,6 +274,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Standings"
+        "429":
+          $ref: "#/components/responses/RateLimitExceeded"
 components:
   schemas:
     Position:
@@ -517,6 +531,12 @@ components:
             $ref: "#/components/schemas/Error"
     NotFound:
       description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimitExceeded:
+      description: Too many requests. Rate limit exceeded.
       content:
         application/json:
           schema:
