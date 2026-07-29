@@ -4,74 +4,97 @@ name: SwaggerHub API Design-First Workflow
 # Required GitHub configuration:
 #
 #   Secrets  (Settings → Secrets and variables → Actions → Secrets):
-#     SWAGGERHUB_API_KEY   — your SwaggerHub API key
+#     SWAGGERHUB_API_KEY  — your SwaggerHub API key
 #
 #   Variables  (Settings → Secrets and variables → Actions → Variables):
-#     SWAGGERHUB_OWNER     — SwaggerHub org or username (e.g. "my-org")
-#     SWAGGERHUB_API_NAME  — API name in SwaggerHub (e.g. "petstore")
+#     SWAGGERHUB_OWNER    — SwaggerHub org or username (e.g. "my-org")
+#
+# API name is derived automatically from the spec filename:
+#   oas/petstore.yaml  →  API name "petstore"
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
   push:
-    # Adjust to match wherever you commit your OpenAPI spec files
     paths:
-      - '**/*.yaml'
-      - '**/*.yml'
-      - '**/*.json'
+      - 'oas/**'
     branches:
       - main
 
 jobs:
-  swaggerhub-sync:
-    name: Sync & Validate API Spec
+
+  # ── Job 1: Detect which spec files changed in oas/ ──────────────────────────
+  detect:
+    name: Detect changed specs
     runs-on: ubuntu-latest
+    outputs:
+      matrix:    ${{ steps.set-matrix.outputs.matrix }}
+      has_specs: ${{ steps.set-matrix.outputs.has_specs }}
 
     steps:
-
-      # ── 1. Checkout ──────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      # ── 2. Detect which spec file changed ───────────────────────────────────
-      - name: Detect changed OpenAPI spec
-        id: detect
+      - name: Build spec file matrix
+        id: set-matrix
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD)
-          SPEC=$(echo "$CHANGED" | grep -E '\.(yaml|yml|json)$' | head -1)
+          FILES=$(git diff --name-only HEAD~1 HEAD -- oas/ \
+            | grep -E '\.(yaml|yml|json)$' || true)
 
-          if [ -z "$SPEC" ]; then
-            echo "No OpenAPI spec file changed — skipping."
-            echo "found=false" >> $GITHUB_OUTPUT
+          if [ -z "$FILES" ]; then
+            echo "No spec files changed in oas/"
+            echo "matrix=[]"      >> $GITHUB_OUTPUT
+            echo "has_specs=false" >> $GITHUB_OUTPUT
           else
-            echo "Detected spec: $SPEC"
-            echo "spec=$SPEC"     >> $GITHUB_OUTPUT
-            echo "found=true"     >> $GITHUB_OUTPUT
+            echo "Changed specs:"
+            echo "$FILES"
+            MATRIX=$(echo "$FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "matrix=$MATRIX"  >> $GITHUB_OUTPUT
+            echo "has_specs=true"  >> $GITHUB_OUTPUT
           fi
 
-      # ── 3. Extract version from spec's info.version ─────────────────────────
-      - name: Extract API version from spec
-        if: steps.detect.outputs.found == 'true'
+  # ── Job 2: Sync, validate, and publish each spec (parallel per file) ─────────
+  sync:
+    name: "${{ matrix.spec }}"
+    needs: detect
+    if: needs.detect.outputs.has_specs == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false   # process all specs even if one fails
+      matrix:
+        spec: ${{ fromJson(needs.detect.outputs.matrix) }}
+
+    steps:
+
+      # ── 1. Checkout ───────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Derive API name and version ────────────────────────────────────
+      - name: Extract API metadata
         id: meta
         run: |
-          SPEC="${{ steps.detect.outputs.spec }}"
+          SPEC="${{ matrix.spec }}"
+          FILENAME=$(basename "$SPEC")
+          API="${FILENAME%.*}"
+          echo "api=$API" >> $GITHUB_OUTPUT
+
           if [[ "$SPEC" == *.json ]]; then
             VERSION=$(python3 -c "import json; print(json.load(open('$SPEC'))['info']['version'])")
           else
             VERSION=$(python3 -c "import yaml; print(yaml.safe_load(open('$SPEC'))['info']['version'])")
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "API version: $VERSION"
+          echo "API: $API  |  Version: $VERSION"
 
-      # ── 4. Push spec to SwaggerHub (create or update) ───────────────────────
+      # ── 3. Push spec to SwaggerHub (create or update) ─────────────────────
       - name: Push spec to SwaggerHub
-        if: steps.detect.outputs.found == 'true'
         id: push
         run: |
-          SPEC="${{ steps.detect.outputs.spec }}"
+          SPEC="${{ matrix.spec }}"
           OWNER="${{ vars.SWAGGERHUB_OWNER }}"
-          API="${{ vars.SWAGGERHUB_API_NAME }}"
+          API="${{ steps.meta.outputs.api }}"
 
           [[ "$SPEC" == *.json ]] && CTYPE="application/json" || CTYPE="application/yaml"
 
@@ -81,25 +104,22 @@ jobs:
             -H "Content-Type: $CTYPE" \
             --data-binary "@$SPEC")
 
-          cat push_response.json
-          echo ""
+          cat push_response.json; echo ""
 
           if [[ "$HTTP_CODE" =~ ^20 ]]; then
             [[ "$HTTP_CODE" == "201" ]] && ACTION="created" || ACTION="updated"
-            echo "action=$ACTION" >> $GITHUB_OUTPUT
             echo "✅ Spec $ACTION in SwaggerHub (HTTP $HTTP_CODE)."
           else
             echo "::error::Failed to push spec to SwaggerHub (HTTP $HTTP_CODE)"
             exit 1
           fi
 
-      # ── 5. Fetch standardization report ─────────────────────────────────────
+      # ── 4. Fetch standardization report ───────────────────────────────────
       - name: Get standardization report
-        if: steps.detect.outputs.found == 'true'
         id: standardize
         run: |
           OWNER="${{ vars.SWAGGERHUB_OWNER }}"
-          API="${{ vars.SWAGGERHUB_API_NAME }}"
+          API="${{ steps.meta.outputs.api }}"
           VERSION="${{ steps.meta.outputs.version }}"
 
           HTTP_CODE=$(curl -s -o std_report.json -w "%{http_code}" \
@@ -109,8 +129,7 @@ jobs:
 
           if [[ "$HTTP_CODE" != "200" ]]; then
             echo "::error::Failed to retrieve standardization report (HTTP $HTTP_CODE)"
-            cat std_report.json
-            exit 1
+            cat std_report.json; exit 1
           fi
 
           ERROR_COUNT=$(python3 -c "
@@ -122,12 +141,11 @@ jobs:
           echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
           echo "Standardization errors: $ERROR_COUNT"
 
-      # ── 6. Summarize findings (console + GitHub Step Summary) ───────────────
+      # ── 5. Summarize findings (console + Step Summary) ────────────────────
       - name: Summarize standardization findings
-        if: steps.detect.outputs.found == 'true'
         env:
-          SPEC:        ${{ steps.detect.outputs.spec }}
-          API:         ${{ vars.SWAGGERHUB_API_NAME }}
+          SPEC:        ${{ matrix.spec }}
+          API:         ${{ steps.meta.outputs.api }}
           VERSION:     ${{ steps.meta.outputs.version }}
           ERROR_COUNT: ${{ steps.standardize.outputs.error_count }}
         run: |
@@ -182,12 +200,12 @@ jobs:
               f.write('\n'.join(summary_lines) + '\n')
           PYEOF
 
-      # ── 7a. Publish — only if standardization passed ────────────────────────
+      # ── 6a. Publish — standardization passed ──────────────────────────────
       - name: Publish API on SwaggerHub
-        if: steps.detect.outputs.found == 'true' && steps.standardize.outputs.error_count == '0'
+        if: steps.standardize.outputs.error_count == '0'
         run: |
           OWNER="${{ vars.SWAGGERHUB_OWNER }}"
-          API="${{ vars.SWAGGERHUB_API_NAME }}"
+          API="${{ steps.meta.outputs.api }}"
           VERSION="${{ steps.meta.outputs.version }}"
 
           HTTP_CODE=$(curl -s -o publish_response.json -w "%{http_code}" \
@@ -196,8 +214,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"published": true}')
 
-          cat publish_response.json
-          echo ""
+          cat publish_response.json; echo ""
 
           if [[ "$HTTP_CODE" == "200" ]]; then
             echo "::notice::✅ $API v$VERSION has been PUBLISHED on SwaggerHub."
@@ -211,11 +228,11 @@ jobs:
             exit 1
           fi
 
-      # ── 7b. Fail — standardization issues block publishing ──────────────────
+      # ── 6b. Block publish — standardization failed ────────────────────────
       - name: Block publish — standardization failed
-        if: steps.detect.outputs.found == 'true' && steps.standardize.outputs.error_count != '0'
+        if: steps.standardize.outputs.error_count != '0'
         run: |
-          API="${{ vars.SWAGGERHUB_API_NAME }}"
+          API="${{ steps.meta.outputs.api }}"
           VERSION="${{ steps.meta.outputs.version }}"
           COUNT="${{ steps.standardize.outputs.error_count }}"
 
