@@ -1,0 +1,559 @@
+openapi: 3.0.0
+info:
+  title: Baseball Statics Service
+  description: |
+    The **Baseball Stats API** provides read access to a fictional baseball
+    statistics service. Use it to look up teams, players, and core season
+    batting and pitching statistics.
+
+    This is **version 1** of the API and is intended for Swagger Studio
+    demonstration purposes only. All data is fictional.
+
+    ## Capabilities
+    - Browse and search teams
+    - Browse and search players
+    - Retrieve a player's season batting and pitching stats
+    - View league standings
+
+    > **Note:** This API is read-only. Write operations and advanced
+    > analytics are introduced in v2.
+  contact:
+    name: Diamond Stats Support
+    url: https://diamondstats.example.com
+    email: support@diamondstats.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  version: 1.0.0
+servers:
+- url: https://virtserver.swaggerhub.com/smartbearsecontent/baseball-statistics-service/1.0.0
+  description: SwaggerHub API Auto Mocking
+- url: https://api.diamondstats.example.com/v1
+  description: Production server (v1)
+- url: https://sandbox.diamondstats.example.com/v1
+  description: Sandbox server (v1)
+tags:
+- name: Teams
+  description: Operations for retrieving baseball teams.
+- name: Players
+  description: Operations for retrieving players.
+- name: Stats
+  description: Season batting and pitching statistics.
+- name: Standings
+  description: League and division standings.
+paths:
+  /teams:
+    get:
+      tags:
+      - Teams
+      summary: List teams
+      description: Returns a paginated list of all teams.
+      operationId: listTeams
+      parameters:
+      - name: limit
+        in: query
+        description: Maximum number of items to return.
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 25
+      - name: offset
+        in: query
+        description: Number of items to skip for pagination.
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: league
+        in: query
+        description: Filter by league.
+        required: false
+        schema:
+          type: string
+          enum:
+          - AL
+          - NL
+      responses:
+        "200":
+          description: A list of teams.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /teams/{teamId}:
+    get:
+      tags:
+      - Teams
+      summary: Get a team by ID
+      operationId: getTeamById
+      parameters:
+      - name: teamId
+        in: path
+        description: Unique identifier of the team.
+        required: true
+        schema:
+          type: string
+          example: NYY
+      responses:
+        "200":
+          description: The requested team.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /teams/{teamId}/roster:
+    get:
+      tags:
+      - Teams
+      summary: Get a team roster
+      description: Returns the players currently on a team's roster.
+      operationId: getTeamRoster
+      parameters:
+      - name: teamId
+        in: path
+        description: Unique identifier of the team.
+        required: true
+        schema:
+          type: string
+          example: NYY
+      responses:
+        "200":
+          description: The team roster.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerList"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /players:
+    get:
+      tags:
+      - Players
+      summary: List players
+      description: Returns a paginated list of players. Supports name search.
+      operationId: listPlayers
+      parameters:
+      - name: limit
+        in: query
+        description: Maximum number of items to return.
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 25
+      - name: offset
+        in: query
+        description: Number of items to skip for pagination.
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: search
+        in: query
+        description: Case-insensitive substring match on player name.
+        required: false
+        schema:
+          type: string
+      - name: position
+        in: query
+        description: Filter by primary position.
+        required: false
+        schema:
+          $ref: "#/components/schemas/Position"
+      responses:
+        "200":
+          description: A list of players.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /players/{playerId}:
+    get:
+      tags:
+      - Players
+      summary: Get a player by ID
+      operationId: getPlayerById
+      parameters:
+      - name: playerId
+        in: path
+        description: Unique identifier of the player.
+        required: true
+        schema:
+          type: integer
+          example: 1042
+      responses:
+        "200":
+          description: The requested player.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /players/{playerId}/stats:
+    get:
+      tags:
+      - Stats
+      summary: Get a player's season stats
+      description: Returns batting and pitching statistics for a player for a given season.
+      operationId: getPlayerStats
+      parameters:
+      - name: playerId
+        in: path
+        description: Unique identifier of the player.
+        required: true
+        schema:
+          type: integer
+          example: 1042
+      - name: season
+        in: query
+        description: Four-digit season year. Defaults to the most recent season.
+        required: false
+        schema:
+          type: integer
+          example: 2025
+      responses:
+        "200":
+          description: The player's season statistics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerSeasonStats"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /standings:
+    get:
+      tags:
+      - Standings
+      summary: Get league standings
+      description: Returns division standings for a given season.
+      operationId: getStandings
+      parameters:
+      - name: season
+        in: query
+        description: Four-digit season year. Defaults to the most recent season.
+        required: false
+        schema:
+          type: integer
+          example: 2025
+      - name: league
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - AL
+          - NL
+      responses:
+        "200":
+          description: The standings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Standings"
+components:
+  schemas:
+    Position:
+      type: string
+      description: Primary fielding position.
+      enum:
+      - P
+      - C
+      - 1B
+      - 2B
+      - 3B
+      - SS
+      - LF
+      - CF
+      - RF
+      - DH
+    Team:
+      required:
+      - city
+      - division
+      - id
+      - league
+      - name
+      type: object
+      properties:
+        id:
+          type: string
+          example: NYY
+        name:
+          type: string
+          example: New York Yankees
+        city:
+          type: string
+          example: New York
+        league:
+          type: string
+          example: AL
+          enum:
+          - AL
+          - NL
+        division:
+          type: string
+          example: East
+          enum:
+          - East
+          - Central
+          - West
+        founded:
+          type: integer
+          example: 1901
+    TeamList:
+      required:
+      - items
+      - total
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Team"
+        total:
+          type: integer
+          description: Total number of teams matching the query.
+          example: 30
+    Player:
+      required:
+      - id
+      - name
+      - position
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1042
+        name:
+          type: string
+          example: Jake Morrison
+        position:
+          $ref: "#/components/schemas/Position"
+        teamId:
+          type: string
+          nullable: true
+          example: NYY
+        bats:
+          type: string
+          example: R
+          enum:
+          - L
+          - R
+          - S
+        throws:
+          type: string
+          example: R
+          enum:
+          - L
+          - R
+        birthDate:
+          type: string
+          format: date
+          example: 1996-04-21
+    PlayerList:
+      required:
+      - items
+      - total
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Player"
+        total:
+          type: integer
+          example: 750
+    BattingStats:
+      type: object
+      properties:
+        games:
+          type: integer
+          example: 148
+        atBats:
+          type: integer
+          example: 561
+        hits:
+          type: integer
+          example: 167
+        homeRuns:
+          type: integer
+          example: 32
+        runsBattedIn:
+          type: integer
+          example: 98
+        battingAverage:
+          type: number
+          format: float
+          example: 0.298
+        onBasePercentage:
+          type: number
+          format: float
+          example: 0.371
+        sluggingPercentage:
+          type: number
+          format: float
+          example: 0.534
+    PitchingStats:
+      type: object
+      properties:
+        games:
+          type: integer
+          example: 32
+        wins:
+          type: integer
+          example: 14
+        losses:
+          type: integer
+          example: 8
+        earnedRunAverage:
+          type: number
+          format: float
+          example: 3.21
+        strikeouts:
+          type: integer
+          example: 198
+        inningsPitched:
+          type: number
+          format: float
+          example: 192.1
+        walksHitsPerInning:
+          type: number
+          format: float
+          example: 1.12
+    PlayerSeasonStats:
+      required:
+      - playerId
+      - season
+      type: object
+      properties:
+        playerId:
+          type: integer
+          example: 1042
+        season:
+          type: integer
+          example: 2025
+        batting:
+          $ref: "#/components/schemas/BattingStats"
+        pitching:
+          $ref: "#/components/schemas/PitchingStats"
+    StandingRecord:
+      type: object
+      properties:
+        teamId:
+          type: string
+          example: NYY
+        wins:
+          type: integer
+          example: 94
+        losses:
+          type: integer
+          example: 68
+        winningPercentage:
+          type: number
+          format: float
+          example: 0.58
+        gamesBehind:
+          type: number
+          format: float
+          example: 0
+    Standings:
+      type: object
+      properties:
+        season:
+          type: integer
+          example: 2025
+        divisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Standings_divisions"
+    Error:
+      required:
+      - code
+      - message
+      type: object
+      properties:
+        code:
+          type: string
+          example: NOT_FOUND
+        message:
+          type: string
+          example: The requested resource was not found.
+    Standings_divisions:
+      type: object
+      properties:
+        league:
+          type: string
+          enum:
+          - AL
+          - NL
+        division:
+          type: string
+          enum:
+          - East
+          - Central
+          - West
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/StandingRecord"
+  responses:
+    BadRequest:
+      description: The request was malformed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  parameters:
+    LimitParam:
+      name: limit
+      in: query
+      description: Maximum number of items to return.
+      required: false
+      schema:
+        maximum: 100
+        minimum: 1
+        type: integer
+        default: 25
+    OffsetParam:
+      name: offset
+      in: query
+      description: Number of items to skip for pagination.
+      required: false
+      schema:
+        minimum: 0
+        type: integer
+        default: 0
+    TeamIdParam:
+      name: teamId
+      in: path
+      description: Unique identifier of the team.
+      required: true
+      schema:
+        type: string
+        example: NYY
+    PlayerIdParam:
+      name: playerId
+      in: path
+      description: Unique identifier of the player.
+      required: true
+      schema:
+        type: integer
+        example: 1042

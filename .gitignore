@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts (produced by the GitHub Actions workflow locally)
+push_response.json
+std_report.json
+publish_response.json
