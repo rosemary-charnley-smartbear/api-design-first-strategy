@@ -132,11 +132,32 @@ jobs:
             cat std_report.json; exit 1
           fi
 
-          ERROR_COUNT=$(python3 -c "
-          import json
-          data = json.load(open('std_report.json'))
-          print(len(data.get('standardizationErrors', [])))
-          ")
+          echo "--- Raw standardization response ---"
+          cat std_report.json | python3 -m json.tool || cat std_report.json
+          echo "------------------------------------"
+
+          ERROR_COUNT=$(python3 << 'PYEOF'
+import json, sys
+
+with open('std_report.json') as f:
+    data = json.load(f)
+
+# Handle root-level array
+if isinstance(data, list):
+    print(len(data))
+    sys.exit(0)
+
+# Try known field names used by SwaggerHub
+for key in ('standardizationErrors', 'errors', 'violations', 'issues', 'items', 'results'):
+    if key in data and isinstance(data[key], list):
+        print(len(data[key]))
+        sys.exit(0)
+
+# Fallback: count all top-level list values combined
+total = sum(len(v) for v in data.values() if isinstance(v, list))
+print(total)
+PYEOF
+          )
 
           echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
           echo "Standardization errors: $ERROR_COUNT"
@@ -147,6 +168,7 @@ jobs:
           SPEC:        ${{ matrix.spec }}
           API:         ${{ steps.meta.outputs.api }}
           VERSION:     ${{ steps.meta.outputs.version }}
+          OWNER:       ${{ vars.SWAGGERHUB_OWNER }}
           ERROR_COUNT: ${{ steps.standardize.outputs.error_count }}
         run: |
           python3 << 'PYEOF'
@@ -155,17 +177,29 @@ jobs:
           spec        = os.environ['SPEC']
           api         = os.environ['API']
           version     = os.environ['VERSION']
+          owner       = os.environ['OWNER']
           error_count = int(os.environ['ERROR_COUNT'])
+          spec_url    = f"https://app.swaggerhub.com/apis/{owner}/{api}/{version}"
 
           with open('std_report.json') as f:
               data = json.load(f)
 
-          errors = data.get('standardizationErrors', [])
+          # Resolve errors list regardless of field name
+          if isinstance(data, list):
+              errors = data
+          else:
+              errors = next(
+                  (data[k] for k in ('standardizationErrors', 'errors', 'violations',
+                                     'issues', 'items', 'results')
+                   if k in data and isinstance(data[k], list)),
+                  [item for v in data.values() if isinstance(v, list) for item in v]
+              )
 
           summary_lines = [
               f"## Standardization Report — {api} v{version}",
               "",
               f"**Spec file:** `{spec}`",
+              f"**SwaggerHub URL:** [{spec_url}]({spec_url})",
               "",
           ]
 
