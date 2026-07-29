@@ -136,21 +136,21 @@ jobs:
           cat std_report.json | python3 -m json.tool || cat std_report.json
           echo "------------------------------------"
 
-          python3 << 'PYEOF'
-import json
-with open('std_report.json') as f:
-    data = json.load(f)
-if isinstance(data, list):
-    count = len(data)
-else:
-    count = next(
-        (len(data[k]) for k in ('standardizationErrors', 'errors', 'violations', 'issues', 'items', 'results')
-         if k in data and isinstance(data[k], list)),
-        sum(len(v) for v in data.values() if isinstance(v, list))
-    )
-with open('error_count.txt', 'w') as f:
-    f.write(str(count))
-PYEOF
+          python3 <<'PYEOF'
+          import json
+          with open('std_report.json') as f:
+              data = json.load(f)
+          if isinstance(data, list):
+              count = len(data)
+          else:
+              count = next(
+                  (len(data[k]) for k in ('standardizationErrors', 'errors', 'violations', 'issues', 'items', 'results')
+                   if k in data and isinstance(data[k], list)),
+                  sum(len(v) for v in data.values() if isinstance(v, list))
+              )
+          with open('error_count.txt', 'w') as f:
+              f.write(str(count))
+          PYEOF
 
           ERROR_COUNT=$(cat error_count.txt)
           echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
@@ -165,7 +165,7 @@ PYEOF
           OWNER:       ${{ vars.SWAGGERHUB_OWNER }}
           ERROR_COUNT: ${{ steps.standardize.outputs.error_count }}
         run: |
-          python3 << 'PYEOF'
+          python3 <<'PYEOF'
           import json, os
 
           spec        = os.environ['SPEC']
