@@ -85,6 +85,8 @@ paths:
                 $ref: "#/components/schemas/TeamList"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
   /teams/{teamId}:
@@ -184,6 +186,8 @@ paths:
                 $ref: "#/components/schemas/PlayerList"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
   /players/{playerId}:
@@ -274,6 +278,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Standings"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
 components:
