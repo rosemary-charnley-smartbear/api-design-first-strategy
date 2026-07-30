@@ -89,6 +89,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /teams/{teamId}:
     get:
       tags:
@@ -114,6 +116,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /teams/{teamId}/roster:
     get:
       tags:
@@ -140,6 +144,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /players:
     get:
       tags:
@@ -190,6 +196,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /players/{playerId}:
     get:
       tags:
@@ -215,6 +223,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /players/{playerId}/stats:
     get:
       tags:
@@ -248,6 +258,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /standings:
     get:
       tags:
@@ -282,6 +294,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimitExceeded"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 components:
   schemas:
     Position:
@@ -543,6 +557,12 @@ components:
             $ref: "#/components/schemas/Error"
     RateLimitExceeded:
       description: Too many requests. Rate limit exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalServerError:
+      description: An unexpected error occurred.
       content:
         application/json:
           schema:
